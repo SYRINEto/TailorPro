@@ -15,11 +15,35 @@ class TailorProApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'TailorPro',
-      theme: ThemeData.dark(),
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        primaryColor: Colors.deepPurple,
+        scaffoldBackgroundColor: Color(0xFF121212),
+      ),
       home: HomePage(),
     );
   }
 }
+
+// 📦 LISTE PRODUITS
+List<String> products = [
+  "Parure lit 1 place (3 pièces)",
+  "Parure lit 2 places (6 pièces)",
+  "Chemise",
+  "Pantalon",
+  "Robe",
+  "Jebba",
+  "Koftan",
+  "Cache couette",
+];
+
+// 📸 IMAGES MODELES
+Map<String, String> productImages = {
+  "Robe": "assets/robe.png",
+  "Pantalon": "assets/pantalon.png",
+  "Chemise": "assets/chemise.png",
+  "Jebba": "assets/jebba.png",
+};
 
 class HomePage extends StatefulWidget {
   @override
@@ -28,7 +52,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   Box box = Hive.box('clients');
-
   List clients = [];
 
   @override
@@ -88,23 +111,26 @@ class _HomePageState extends State<HomePage> {
       body: ListView.builder(
         itemCount: clients.length,
         itemBuilder: (context, i) {
-          return ListTile(
-            title: Text(clients[i]["name"]),
-            subtitle: Text(clients[i]["phone"]),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ClientPage(
-                    client: clients[i],
-                    onUpdate: () {
-                      setState(() {});
-                      save();
-                    },
+          return Card(
+            child: ListTile(
+              title: Text(clients[i]["name"]),
+              subtitle: Text(clients[i]["phone"]),
+              trailing: Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ClientPage(
+                      client: clients[i],
+                      onUpdate: () {
+                        setState(() {});
+                        save();
+                      },
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           );
         },
       ),
@@ -127,33 +153,61 @@ class ClientPage extends StatefulWidget {
 }
 
 class _ClientPageState extends State<ClientPage> {
-  File? image;
+  String selectedProduct = products[0];
 
   void addOrder() {
-    String type = "";
     String price = "";
     String qty = "";
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text("Commande"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(onChanged: (v) => type = v, decoration: InputDecoration(labelText: "Type")),
-            TextField(onChanged: (v) => price = v, decoration: InputDecoration(labelText: "Prix")),
-            TextField(onChanged: (v) => qty = v, decoration: InputDecoration(labelText: "Quantité")),
-          ],
+        title: Text("Nouvelle commande"),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+
+              // 🎯 DROPDOWN PRODUIT
+              DropdownButtonFormField(
+                value: selectedProduct,
+                items: products.map((p) {
+                  return DropdownMenuItem(value: p, child: Text(p));
+                }).toList(),
+                onChanged: (v) {
+                  setState(() {
+                    selectedProduct = v!;
+                  });
+                },
+              ),
+
+              SizedBox(height: 10),
+
+              // 📸 IMAGE MODELE
+              if (productImages.containsKey(selectedProduct))
+                Image.asset(productImages[selectedProduct]!, height: 100),
+
+              TextField(
+                decoration: InputDecoration(labelText: "Prix"),
+                keyboardType: TextInputType.number,
+                onChanged: (v) => price = v,
+              ),
+
+              TextField(
+                decoration: InputDecoration(labelText: "Quantité"),
+                keyboardType: TextInputType.number,
+                onChanged: (v) => qty = v,
+              ),
+            ],
+          ),
         ),
         actions: [
           ElevatedButton(
             onPressed: () {
               setState(() {
                 widget.client["orders"].add({
-                  "type": type,
-                  "price": double.parse(price),
-                  "qty": int.parse(qty),
+                  "type": selectedProduct,
+                  "price": double.tryParse(price) ?? 0,
+                  "qty": int.tryParse(qty) ?? 1,
                 });
               });
               widget.onUpdate();
@@ -184,12 +238,6 @@ class _ClientPageState extends State<ClientPage> {
     }
   }
 
-  double aiPriceSuggestion(String type) {
-    if (type.contains("robe")) return 120;
-    if (type.contains("pantalon")) return 60;
-    return 80;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -200,8 +248,8 @@ class _ClientPageState extends State<ClientPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            Text("📞 ${widget.client["phone"]}"),
-            Text("📅 ${widget.client["date"]}"),
+            Text("📞 ${widget.client["phone"]}", style: TextStyle(fontSize: 16)),
+            Text("📅 ${widget.client["date"]}", style: TextStyle(fontSize: 16)),
 
             SizedBox(height: 20),
 
@@ -210,28 +258,31 @@ class _ClientPageState extends State<ClientPage> {
 
             SizedBox(height: 20),
 
-            Text("📦 Commandes"),
+            Text("📦 Commandes", style: TextStyle(fontSize: 18)),
             ...widget.client["orders"].map<Widget>((o) {
-              return ListTile(
-                title: Text(o["type"]),
-                subtitle: Text("${o["qty"]} x ${o["price"]}"),
+              return Card(
+                child: ListTile(
+                  title: Text(o["type"]),
+                  subtitle: Text("${o["qty"]} x ${o["price"]}"),
+                ),
               );
             }).toList(),
 
             SizedBox(height: 10),
 
-            Text("💰 Total: ${total()}"),
-
-            SizedBox(height: 20),
-
-            Text("🤖 IA suggestion prix: ${aiPriceSuggestion("robe")} DT"),
+            Text("💰 Total: ${total()} DT",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
 
             SizedBox(height: 20),
 
             Text("📸 Photos"),
             Wrap(
+              spacing: 10,
               children: widget.client["images"].map<Widget>((p) {
-                return Image.file(File(p), width: 80, height: 80);
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.file(File(p), width: 80, height: 80, fit: BoxFit.cover),
+                );
               }).toList(),
             ),
           ],
